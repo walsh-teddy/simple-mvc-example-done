@@ -129,22 +129,25 @@ const setName = async (req, res) => {
        databases response. If something goes wrong, we will end up in our catch() statement.
     */
     await newCat.save();
-
-    /* After our await has resolved, and if no errors have occured during the await, we will end
-       up here. We will update our lastAdded cat to the one we just added. We will then send that
-       cat's data to the client.
-    */
-    lastAdded = newCat;
-    return res.json({
-      name: lastAdded.name,
-      beds: lastAdded.bedsOwned,
-    });
   } catch (err) {
-    // If something goes wrong while communicating with the database, log the error and send
-    // an error message back to the client.
+    /* If something goes wrong while communicating with the database, log the error and send
+       an error message back to the client. Note that our return will return us from the setName
+       function, not just the catch statement. That means we can treat the code below the catch
+       as being our "if the try worked"
+    */
     console.log(err);
     return res.status(500).json({ error: 'failed to create cat' });
   }
+
+  /* After our await has resolved, and if no errors have occured during the await, we will end
+     up here. We will update our lastAdded cat to the one we just added. We will then send that
+     cat's data to the client.
+  */
+  lastAdded = newCat;
+  return res.json({
+    name: lastAdded.name,
+    beds: lastAdded.bedsOwned,
+  });
 };
 
 // Function to handle searching a cat by name.
@@ -164,6 +167,7 @@ const searchName = async (req, res) => {
      Remember that since we are interacting with the database, we want to wrap our code in a
      try/catch in case the database throws an error or doesn't respond.
   */
+  let doc;
   try {
     /* Just like Cat.find() in hostPage1() above, Mongoose models also have a .findOne()
        that will find a single document in the database that matches the search parameters.
@@ -175,20 +179,20 @@ const searchName = async (req, res) => {
         2) Everything works, but the name was not found in the database returning an empty doc object.
         3) Everything works, and an object matching the search is found.
     */
-    const doc = await Cat.findOne({ name: req.query.name }).exec();
-
-    // If we do not find something that matches our search, doc will be empty.
-    if (!doc) {
-      return res.json({ error: 'No cats found' });
-    }
-
-    // Otherwise, we got a result and will send it back to the user.
-    return res.json({ name: doc.name, beds: doc.bedsOwned });
+    doc = await Cat.findOne({ name: req.query.name }).exec();
   } catch (err) {
     // If there is an error, log it and send the user an error message.
     console.log(err);
     return res.status(500).json({ error: 'Something went wrong' });
   }
+
+  // If we do not find something that matches our search, doc will be empty.
+  if (!doc) {
+    return res.json({ error: 'No cats found' });
+  }
+
+  // Otherwise, we got a result and will send it back to the user.
+  return res.json({ name: doc.name, beds: doc.bedsOwned });
 };
 
 /* A function for updating the last cat added to the database.
