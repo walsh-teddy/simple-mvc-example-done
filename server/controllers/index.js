@@ -175,8 +175,10 @@ const searchName = async (req, res) => {
        matches the parameters. The downside is you cannot get multiple responses with it.
 
        One of three things will occur when trying to findOne in the database.
-        1) An error will be thrown, which will stop execution of the try block and move to the catch block.
-        2) Everything works, but the name was not found in the database returning an empty doc object.
+        1) An error will be thrown, which will stop execution of the try block and move to
+            the catch block.
+        2) Everything works, but the name was not found in the database returning an empty
+            doc object.
         3) Everything works, and an object matching the search is found.
     */
     doc = await Cat.findOne({ name: req.query.name }).exec();
