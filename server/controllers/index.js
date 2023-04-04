@@ -2,16 +2,23 @@
 const models = require('../models');
 
 // get the Cat model
-const { Cat } = models;
+const { Cat, Dog } = models;
 
 // default fake data so that we have something to work with until we make a real Cat
-const defaultData = {
+const defaultCat = {
   name: 'unknown',
   bedsOwned: 0,
 };
 
+const defaultDog = {
+  name: 'unknown',
+  breed: 'unknown',
+  age: 0,
+};
+
 // object for us to keep track of the last Cat we made and dynamically update it sometimes
-let lastAdded = new Cat(defaultData);
+let lastCat = new Cat(defaultCat);
+let lastDog = new Dog(defaultDog);
 
 // Function to handle rendering the index page.
 const hostIndex = (req, res) => {
@@ -19,7 +26,7 @@ const hostIndex = (req, res) => {
      We pass it a number of variables to populate the page.
   */
   res.render('index', {
-    currentName: lastAdded.name,
+    currentName: lastCat.name,
     title: 'Home',
     pageName: 'Home Page',
   });
@@ -83,8 +90,22 @@ const hostPage3 = (req, res) => {
   res.render('page3');
 };
 
+const hostPage4 = async (req, res) => {
+  // Attempt to get a list of all the docs in the database and display them
+  try {
+    const docs = await Dog.find({}).lean().exec();
+    return res.render('page4', { dogs: docs });
+  } catch (err) { // There was an error
+    // Log the error for ourselves
+    console.log(err);
+
+    // Send back the fact that there was an error but don't tell them what it was for saftey sake
+    return res.status(500).json({ error: 'failed to find dogs' });
+  }
+};
+
 // Get name will return the name of the last added cat.
-const getName = (req, res) => res.json({ name: lastAdded.name });
+const getName = (req, res) => res.json({ name: lastCat.name });
 
 // Function to create a new cat in the database
 const setName = async (req, res) => {
@@ -143,10 +164,10 @@ const setName = async (req, res) => {
      up here. We will update our lastAdded cat to the one we just added. We will then send that
      cat's data to the client.
   */
-  lastAdded = newCat;
+  lastCat = newCat;
   return res.json({
-    name: lastAdded.name,
-    beds: lastAdded.bedsOwned,
+    name: lastCat.name,
+    beds: lastCat.bedsOwned,
   });
 };
 
@@ -204,7 +225,7 @@ const searchName = async (req, res) => {
 */
 const updateLast = (req, res) => {
   // First we will update the number of bedsOwned.
-  lastAdded.bedsOwned++;
+  lastCat.bedsOwned++;
 
   /* Remember that lastAdded is a Mongoose document (made on line 14 if no new
      ones were made after the server started, or line 116 if there was). Mongo
@@ -219,12 +240,12 @@ const updateLast = (req, res) => {
 
      We can use async/await for this, or just use standard promise .then().catch() syntax.
   */
-  const savePromise = lastAdded.save();
+  const savePromise = lastCat.save();
 
   // If we successfully save/update them in the database, send back the cat's info.
   savePromise.then(() => res.json({
-    name: lastAdded.name,
-    beds: lastAdded.bedsOwned,
+    name: lastCat.name,
+    beds: lastCat.bedsOwned,
   }));
 
   // If something goes wrong saving to the database, log the error and send a message to the client.
@@ -232,6 +253,85 @@ const updateLast = (req, res) => {
     console.log(err);
     return res.status(500).json({ error: 'Something went wrong' });
   });
+};
+
+// Adding a new dog
+const createDog = async (req, res) => {
+  // Return an error if they are missing any data
+  if (!req.body.name || !req.body.breed || !req.body.age) { // Data is missing
+    return res.status(400).json({ error: 'name, breed and age are all required' });
+  }
+
+  // Create the dog
+  const dogData = {
+    name: req.body.name,
+    breed: req.body.breed,
+    age: req.body.age,
+  };
+
+  // Create a dog object that can go into the databse
+  const newDog = new Dog(dogData);
+
+  try {
+    // Attempt to store the dog object in the database
+    await newDog.save();
+  } catch (err) { // It didn't work for whatever reason
+    // Return an error
+    console.log(err);
+    return res.status(500).json({ error: 'failed to create cat' });
+  }
+
+  lastDog = newDog;
+  return res.json({
+    name: lastDog.name,
+    breed: lastDog.breed,
+    age: lastDog.age,
+  });
+};
+
+const searchDog = async (req, res) => {
+  // Make sure the request includes a name
+  if (!req.query.name) { // Its missing the name
+    return res.status(400).json({ error: 'Name is required to perform a search' });
+  }
+
+  // Create a variable to store any object in the databse found
+  let doc;
+  // Look for a dog with that name
+  try {
+    // Attempt to find a dog with that name from the database
+    doc = await Dog.findOne({ name: req.query.name }).exec();
+  } catch (err) { // There was an error
+    // Send back the error
+    console.log(err);
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+
+  // Check if it found any dogs with that name
+  if (!doc) { // No dogs with the name were found
+    return res.json({ error: 'No dogs found' });
+  }
+
+  // Update the found dog's age
+  doc.age++;
+
+  // Attempt to update the dog's new age
+  const savePromise = doc.save();
+
+  // If we successfully save/update them in the database, send back the found dog's new age
+  savePromise.then(() => {
+    console.log('Dog found'); // I have to add in this line so ESlint won't yell at me
+    return res.json({ name: doc.name, breed: doc.breed, age: doc.age });
+  });
+
+  // If something goes wrong saving to the database, log the error and send a message to the client.
+  savePromise.catch((err) => {
+    console.log(err);
+    return res.status(500).json({ error: 'Something went wrong' });
+  });
+
+  // Return a value so eslint won't freak out
+  return 1;
 };
 
 // A function to send back the 404 page.
@@ -247,9 +347,12 @@ module.exports = {
   page1: hostPage1,
   page2: hostPage2,
   page3: hostPage3,
+  page4: hostPage4,
   getName,
   setName,
   updateLast,
   searchName,
+  createDog,
+  searchDog,
   notFound,
 };
